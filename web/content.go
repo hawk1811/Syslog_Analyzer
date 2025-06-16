@@ -642,75 +642,82 @@ form {
 
 /* Destination Styles */
 .destination-item {
-    border: 2px solid #ecf0f1;
-    border-radius: 12px;
-    padding: 20px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    padding: 15px;
     margin-bottom: 15px;
-    background: #f8f9fa;
-    position: relative;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .destination-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
 }
 
 .destination-title {
     font-weight: 600;
     color: #2c3e50;
-    font-size: 1.1rem;
 }
 
 .destination-remove {
-    background: #e74c3c;
-    color: white;
+    background: none;
     border: none;
-    border-radius: 50%;
-    width: 30px;
-    height: 30px;
+    color: #e74c3c;
+    font-size: 1.2em;
     cursor: pointer;
-    font-size: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.destination-remove:hover {
-    background: #c0392b;
+    padding: 0 5px;
 }
 
 .destination-config {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 15px;
     margin-bottom: 15px;
 }
 
-.destination-config .form-group {
-    margin-bottom: 0;
+.dest-config-fields {
+    margin-top: 10px;
+}
+
+.dest-config-field {
+    margin-bottom: 10px;
+}
+
+.dest-config-field label {
+    display: block;
+    margin-bottom: 5px;
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+.dest-config-field input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
 }
 
 .destination-actions {
     display: flex;
-    gap: 15px;
     align-items: center;
+    gap: 15px;
     margin-top: 15px;
-    padding-top: 15px;
-    border-top: 1px solid #dee2e6;
 }
 
 .test-button {
-    padding: 8px 16px;
-    font-size: 0.9rem;
+    padding: 6px 12px;
+    font-size: 14px;
 }
 
 .test-status {
-    font-size: 0.9rem;
-    font-weight: 500;
-    padding: 4px 8px;
+    padding: 6px 12px;
     border-radius: 4px;
+    font-size: 14px;
+}
+
+.test-status.idle {
+    background: #f8f9fa;
+    color: #6c757d;
 }
 
 .test-status.testing {
@@ -731,11 +738,16 @@ form {
 .destination-enable {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 5px;
 }
 
 .destination-enable input[type="checkbox"] {
-    width: auto;
+    margin: 0;
+}
+
+.destination-enable label {
+    margin: 0;
+    color: #2c3e50;
 }
 
 .simulation-status {
@@ -1109,7 +1121,6 @@ const JSContent = `class SyslogDashboard {
         const testStatus = existingDest ? existingDest.test_status : 'idle';
         const testMessage = existingDest ? existingDest.test_message : '';
         
-        // FIX 1: Removed Destination Name field, only keeping type selector
         destDiv.innerHTML = 
             "<div class=\"destination-header\">" +
                 "<div class=\"destination-title\">Destination " + this.destinationCounter + "</div>" +
@@ -1119,8 +1130,8 @@ const JSContent = `class SyslogDashboard {
                 "<div class=\"form-group\">" +
                     "<label>Destination Type:</label>" +
                     "<select class=\"dest-type\" onchange=\"dashboard.updateDestinationConfig('" + destId + "')\">" +
-                        "<option value=\"storage\"" + (destType == "storage" ? " selected" : "") + ">Storage</option>" +
-                        "<option value=\"hec\"" + (destType == "hec" ? " selected" : "") + ">HEC (HTTP Event Collector)</option>" +
+                        "<option value=\"storage\"" + (destType === "storage" ? " selected" : "") + ">Storage</option>" +
+                        "<option value=\"hec\"" + (destType === "hec" ? " selected" : "") + ">HEC (HTTP Event Collector)</option>" +
                     "</select>" +
                 "</div>" +
             "</div>" +
@@ -1145,18 +1156,16 @@ const JSContent = `class SyslogDashboard {
 
     getDestinationConfigHTML(type, config) {
         if (type === "storage") {
-            return 
-                "<div class=\"form-group\">" +
+            return "<div class=\"dest-config-field\">" +
                     "<label>Storage Path:</label>" +
-                    "<input type=\"text\" class=\"dest-config-path\" value=\"" + (config.path || "") + "\" placeholder=\"C:\\\\logs\\\\test or //share/logs/test\">" +
+                    "<input type=\"text\" class=\"dest-config-path\" value=\"" + (config.path || "") + "\" placeholder=\"/path/to/storage\">" +
                 "</div>";
         } else if (type === "hec") {
-            return 
-                "<div class=\"form-group\">" +
+            return "<div class=\"dest-config-field\">" +
                     "<label>HEC URL:</label>" +
-                    "<input type=\"text\" class=\"dest-config-url\" value=\"" + (config.url || "") + "\" placeholder=\"https://splunk.example.com:8088/services/collector\">" +
+                    "<input type=\"text\" class=\"dest-config-url\" value=\"" + (config.url || "") + "\" placeholder=\"https://splunk:8088/services/collector\">" +
                 "</div>" +
-                "<div class=\"form-group\">" +
+                "<div class=\"dest-config-field\">" +
                     "<label>API Key:</label>" +
                     "<input type=\"text\" class=\"dest-config-apikey\" value=\"" + (config.api_key || "") + "\" placeholder=\"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx\">" +
                 "</div>";
