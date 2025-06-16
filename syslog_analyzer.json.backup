@@ -1,0 +1,67 @@
+{
+  "sources": [
+    {
+      "name": "Test3",
+      "ip": "10.10.10.10",
+      "port": 514,
+      "protocol": "UDP",
+      "destinations": [
+        {
+          "id": "dest_1",
+          "type": "hec",
+          "name": "hec_destination",
+          "config": {
+            "api_key": "350f5fb6b4f2411aaa93575b0671112e",
+            "url": "https://df3d6b0909f047b8bdee58b7e39dcd30.ingest.us-1.crowdstrike.com/services/collector"
+          },
+          "enabled": true,
+          "tested": false,
+          "test_status": "idle",
+          "test_message": ""
+        },
+        {
+          "id": "dest_2",
+          "type": "storage",
+          "name": "storage_destination",
+          "config": {
+            "path": "c:\\logs\\test"
+          },
+          "enabled": true,
+          "tested": false,
+          "test_status": "idle",
+          "test_message": ""
+        }
+      ],
+      "simulation_mode": false,
+      "created_at": "2025-06-16T17:37:44.8550885+03:00"
+    },
+    {
+      "name": "Test1",
+      "ip": "192.168.68.31",
+      "port": 514,
+      "protocol": "UDP",
+      "destinations": [
+        {
+          "id": "dest_1",
+          "type": "hec",
+          "name": "hec_destination",
+          "config": {
+            "api_key": "350f5fb6b4f2411aaa93575b0671112e",
+            "url": "https://df3d6b0909f047b8bdee58b7e39dcd30.ingest.us-1.crowdstrike.com/services/collector"
+          },
+          "enabled": true,
+          "tested": false,
+          "test_status": "idle",
+          "test_message": ""
+        }
+      ],
+      "simulation_mode": false,
+      "created_at": "2025-06-16T17:38:30.0337624+03:00"
+    }
+  ],
+  "global_settings": {
+    "web_port": 8080,
+    "max_memory_per_source": "100MB",
+    "metrics_retention_hours": 24
+  }
+}

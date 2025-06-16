@@ -51,24 +51,32 @@ type Config struct {
 	GlobalSettings GlobalSettings `json:"global_settings"`
 }
 
-// SourceMetrics holds real-time metrics for a syslog source
-type SourceMetrics struct {
-	Name           string    `json:"name"`
-	SourceIP       string    `json:"source_ip"`
-	Port           int       `json:"port"`
-	Protocol       string    `json:"protocol"`
-	RealTimeEPS    float64   `json:"realtime_eps"`
-	RealTimeGBps   float64   `json:"realtime_gbps"`
-	HourlyAvgLogs  int64     `json:"hourly_avg_logs"`
-	HourlyAvgGB    float64   `json:"hourly_avg_gb"`
-	DailyAvgLogs   int64     `json:"daily_avg_logs"`
-	DailyAvgGB     float64   `json:"daily_avg_gb"`
-	LastUpdated    time.Time `json:"last_updated"`
-	IsActive       bool      `json:"is_active"`
-	IsReceiving    bool      `json:"is_receiving"`
-	LastMessageAt  time.Time `json:"last_message_at"`
+// DestinationMetrics holds metrics for a specific destination
+type DestinationMetrics struct {
 	QueueLength    int64     `json:"queue_length"`
 	ProcessedCount int64     `json:"processed_count"`
+	LastUpdated    time.Time `json:"last_updated"`
+}
+
+// SourceMetrics holds real-time metrics for a syslog source
+type SourceMetrics struct {
+	Name           string                        `json:"name"`
+	SourceIP       string                        `json:"source_ip"`
+	Port           int                           `json:"port"`
+	Protocol       string                        `json:"protocol"`
+	RealTimeEPS    float64                       `json:"realtime_eps"`
+	RealTimeGBps   float64                       `json:"realtime_gbps"`
+	HourlyAvgLogs  int64                         `json:"hourly_avg_logs"`
+	HourlyAvgGB    float64                       `json:"hourly_avg_gb"`
+	DailyAvgLogs   int64                         `json:"daily_avg_logs"`
+	DailyAvgGB     float64                       `json:"daily_avg_gb"`
+	LastUpdated    time.Time                     `json:"last_updated"`
+	IsActive       bool                          `json:"is_active"`
+	IsReceiving    bool                          `json:"is_receiving"`
+	LastMessageAt  time.Time                     `json:"last_message_at"`
+	QueueLength    int64                         `json:"queue_length"`
+	ProcessedCount int64                         `json:"processed_count"`
+	DestMetrics    map[string]DestinationMetrics `json:"dest_metrics"`
 }
 
 // GlobalMetrics represents aggregated metrics across all sources

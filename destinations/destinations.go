@@ -176,7 +176,8 @@ func (t *Tester) testHECDestination(dest *models.Destination, sourceName, source
 			"source_ip":   sourceIP,   // Use actual IP from form
 			"source_name": sourceName, // Use source name from form
 		},
-		"source": sourceName, // This should match source_name in event
+		"source":                sourceName, // This should match source_name in event
+		"Avg_daily_ingested_GB": "not_started",
 	}
 
 	payloadBytes, err := json.Marshal(testPayload)

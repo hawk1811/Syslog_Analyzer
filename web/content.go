@@ -32,11 +32,11 @@ const HTMLContent = `<!DOCTYPE html>
                         <div class="metric-value" id="globalGBps">0.000000</div>
                     </div>
                     <div class="metric-card">
-                        <h3>Total Hourly Avg GB/s</h3>
+                        <h3>Total Hourly Avg GB</h3>
                         <div class="metric-value" id="totalHourlyAvg">0.00000</div>
                     </div>
                     <div class="metric-card">
-                        <h3>Total Daily Avg GB/s</h3>
+                        <h3>Total Daily Avg GB</h3>
                         <div class="metric-value" id="totalDailyAvg">0.00000</div>
                     </div>
                     <div class="metric-card">
@@ -1327,7 +1327,7 @@ const JSContent = `class SyslogDashboard {
             let response;
             if (this.editingSourceName) {
                 // Update existing source
-                response = await fetch(` + "`" + `/api/sources/${encodeURIComponent(this.editingSourceName)}` + "`" + `, {
+                response = await fetch(`/api/sources/${encodeURIComponent(this.editingSourceName)}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1350,14 +1350,18 @@ const JSContent = `class SyslogDashboard {
                 // Automatically reload the dashboard data
                 setTimeout(() => {
                     this.loadInitialData();
-                }, 500); // Small delay to ensure backend is updated
+                }, 500);
             } else {
                 const result = await response.json();
-                alert(` + "`" + `Error ${this.editingSourceName ? 'updating' : 'adding'} source: ` + "`" + ` + (result.error || 'Unknown error'));
+                alert(`Error ${this.editingSourceName ? 'updating' : 'adding'} source: ${result.error || 'Unknown error'}`);
+                // Don't hide modal on error
+                return;
             }
         } catch (error) {
-            console.error(` + "`" + `Error ${this.editingSourceName ? 'updating' : 'adding'} source:` + "`" + `, error);
-            alert(` + "`" + `Error ${this.editingSourceName ? 'updating' : 'adding'} source: ` + "`" + ` + error.message);
+            console.error(`Error ${this.editingSourceName ? 'updating' : 'adding'} source:`, error);
+            alert(`Error ${this.editingSourceName ? 'updating' : 'adding'} source: ${error.message}`);
+            // Don't hide modal on error
+            return;
         }
     }
 
@@ -1384,7 +1388,7 @@ const JSContent = `class SyslogDashboard {
         }
 
         try {
-            const response = await fetch(` + "`" + `/api/sources/${encodeURIComponent(name)}` + "`" + `, {
+            const response = await fetch(`/api/sources/${encodeURIComponent(name)}`, {
                 method: 'DELETE'
             });
 

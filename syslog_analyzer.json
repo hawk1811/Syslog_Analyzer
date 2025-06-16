@@ -1,0 +1,7 @@
+{
+  "global_settings": {
+    "web_port": 8080,
+    "max_memory_per_source": "100MB",
+    "metrics_retention_hours": 24
+  }
+}

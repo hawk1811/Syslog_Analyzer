@@ -30,6 +30,8 @@ type SyslogSource struct {
 	mutex           sync.RWMutex
 	queue           chan []byte
 	processedCount  int64
+	destQueues      map[string]chan []byte
+	destMetrics     map[string]*models.DestinationMetrics
 }
 
 // ApplicationInterface defines the interface for application methods needed by SyslogSource
@@ -40,19 +42,33 @@ type ApplicationInterface interface {
 
 // NewSyslogSource creates a new syslog source processor
 func NewSyslogSource(config models.SourceConfig) *SyslogSource {
-	return &SyslogSource{
+	s := &SyslogSource{
 		config:      config,
-		buffer:      NewCircularBuffer(3600), // Store 1 hour of data points
+		buffer:      NewCircularBuffer(3600),
 		connections: make(map[string]net.Conn),
 		stopChan:    make(chan bool),
+		queue:       make(chan []byte, 10000),
+		destQueues:  make(map[string]chan []byte),
+		destMetrics: make(map[string]*models.DestinationMetrics),
 		metrics: &models.SourceMetrics{
-			Name:     config.Name,
-			SourceIP: config.IP,
-			Port:     config.Port,
-			Protocol: config.Protocol,
+			Name:        config.Name,
+			SourceIP:    config.IP,
+			Port:        config.Port,
+			Protocol:    config.Protocol,
+			DestMetrics: make(map[string]models.DestinationMetrics),
 		},
-		queue: make(chan []byte),
 	}
+
+	// Initialize destination queues and metrics
+	for _, dest := range config.Destinations {
+		if dest.Enabled {
+			s.destQueues[dest.ID] = make(chan []byte, 10000)
+			s.destMetrics[dest.ID] = &models.DestinationMetrics{}
+			s.metrics.DestMetrics[dest.ID] = models.DestinationMetrics{}
+		}
+	}
+
+	return s
 }
 
 // Start begins processing syslog messages for this source
@@ -109,6 +125,16 @@ func (s *SyslogSource) Stop(app ApplicationInterface) {
 
 // processMessage processes a single syslog message
 func (s *SyslogSource) processMessage(data []byte) {
+	// Update message timing
+	s.msgMutex.Lock()
+	s.lastMessageTime = time.Now()
+	s.msgMutex.Unlock()
+
+	// Increment counters
+	atomic.AddInt64(&s.eventCount, 1)
+	atomic.AddInt64(&s.dataSize, int64(len(data)))
+
+	// Queue the message if not in simulation mode
 	if !s.config.SimulationMode {
 		s.queue <- data
 		atomic.AddInt64(&s.processedCount, 1)
@@ -172,13 +198,19 @@ func (s *SyslogSource) calculateMetrics() {
 	s.metrics.LastUpdated = now
 	s.metrics.IsActive = s.isRunning
 
+	// Update destination metrics
+	for destID, metrics := range s.destMetrics {
+		s.metrics.DestMetrics[destID] = models.DestinationMetrics{
+			QueueLength:    atomic.LoadInt64(&metrics.QueueLength),
+			ProcessedCount: atomic.LoadInt64(&metrics.ProcessedCount),
+			LastUpdated:    now,
+		}
+	}
+
 	// Reset counters
 	atomic.StoreInt64(&s.eventCount, 0)
 	atomic.StoreInt64(&s.dataSize, 0)
 	s.lastUpdate = now
-
-	s.metrics.QueueLength = int64(len(s.queue))
-	s.metrics.ProcessedCount = atomic.LoadInt64(&s.processedCount)
 }
 
 // GetMetrics returns current metrics for this source
@@ -197,6 +229,7 @@ func (s *SyslogSource) IsRunning() bool {
 }
 
 func (s *SyslogSource) startWorker() {
+	// Start main queue worker
 	go func() {
 		batch := make([][]byte, 0, 1000)
 		batchSize := 1000
@@ -220,6 +253,45 @@ func (s *SyslogSource) startWorker() {
 			}
 		}
 	}()
+
+	// Start destination workers
+	for destID, queue := range s.destQueues {
+		go s.startDestinationWorker(destID, queue)
+	}
+}
+
+func (s *SyslogSource) startDestinationWorker(destID string, queue chan []byte) {
+	batch := make([][]byte, 0, 1000)
+	batchSize := 1000
+	dest := s.getDestinationByID(destID)
+	if dest == nil {
+		return
+	}
+
+	for {
+		select {
+		case logData := <-queue:
+			batch = append(batch, logData)
+			if len(batch) >= batchSize {
+				s.processDestinationBatch(destID, dest, batch)
+				batch = make([][]byte, 0, batchSize)
+			}
+		case <-time.After(2 * time.Second):
+			if len(batch) > 0 {
+				s.processDestinationBatch(destID, dest, batch)
+				batch = make([][]byte, 0, batchSize)
+			}
+		}
+	}
+}
+
+func (s *SyslogSource) getDestinationByID(destID string) *models.Destination {
+	for _, dest := range s.config.Destinations {
+		if dest.ID == destID {
+			return &dest
+		}
+	}
+	return nil
 }
 
 func (s *SyslogSource) processBatch(batch [][]byte) {
@@ -229,7 +301,6 @@ func (s *SyslogSource) processBatch(batch [][]byte) {
 	for _, logData := range batch {
 		var event map[string]interface{}
 		if json.Valid(logData) {
-			// Parse JSON log
 			if err := json.Unmarshal(logData, &event); err != nil {
 				event = map[string]interface{}{"event": string(logData)}
 			}
@@ -249,31 +320,81 @@ func (s *SyslogSource) processBatch(batch [][]byte) {
 		}
 		events = append(events, event)
 	}
-	for _, dest := range s.config.Destinations {
-		if !dest.Enabled {
-			continue
-		}
-		switch dest.Type {
-		case "storage":
-			cfg, ok := dest.Config.(map[string]interface{})
-			if ok {
-				storageCfg := models.StorageConfig{}
-				if path, exists := cfg["path"].(string); exists {
-					storageCfg.Path = path
+
+	// Distribute to destination queues
+	for destID, queue := range s.destQueues {
+		dest := s.getDestinationByID(destID)
+		if dest != nil && dest.Enabled {
+			for _, event := range events {
+				eventBytes, err := json.Marshal(event)
+				if err != nil {
+					continue
 				}
-				_ = destinations.WriteBatchToStorage(sourceName, storageCfg, events)
+				select {
+				case queue <- eventBytes:
+					atomic.AddInt64(&s.destMetrics[destID].QueueLength, 1)
+				default:
+					// Queue full, log error
+					log.Printf("Warning: Destination queue full for %s", destID)
+				}
 			}
-		case "hec":
-			cfg, ok := dest.Config.(map[string]interface{})
-			if ok {
-				hecCfg := models.HECConfig{}
-				if url, exists := cfg["url"].(string); exists {
-					hecCfg.URL = url
-				}
-				if apiKey, exists := cfg["api_key"].(string); exists {
-					hecCfg.APIKey = apiKey
-				}
-				_ = destinations.PostBatchToHEC(sourceName, hecCfg, events)
+		}
+	}
+}
+
+func (s *SyslogSource) processDestinationBatch(destID string, dest *models.Destination, batch [][]byte) {
+	events := make([]map[string]interface{}, 0, len(batch))
+	sourceName := s.config.Name
+	simMode := s.config.SimulationMode
+	for _, logData := range batch {
+		var event map[string]interface{}
+		if json.Valid(logData) {
+			if err := json.Unmarshal(logData, &event); err != nil {
+				event = map[string]interface{}{"event": string(logData)}
+			}
+			event = map[string]interface{}{
+				"time":            time.Now().UTC().Format("Jan 02 15:04:05"),
+				"event":           event,
+				"source":          sourceName,
+				"simulation_mode": simMode,
+			}
+		} else {
+			event = map[string]interface{}{
+				"time":            time.Now().UTC().Format("Jan 02 15:04:05"),
+				"event":           string(logData),
+				"source":          sourceName,
+				"simulation_mode": simMode,
+			}
+		}
+		events = append(events, event)
+	}
+
+	switch dest.Type {
+	case "storage":
+		cfg, ok := dest.Config.(map[string]interface{})
+		if ok {
+			storageCfg := models.StorageConfig{}
+			if path, exists := cfg["path"].(string); exists {
+				storageCfg.Path = path
+			}
+			if err := destinations.WriteBatchToStorage(sourceName, storageCfg, events); err == nil {
+				atomic.AddInt64(&s.destMetrics[destID].ProcessedCount, int64(len(events)))
+				atomic.AddInt64(&s.destMetrics[destID].QueueLength, -int64(len(events)))
+			}
+		}
+	case "hec":
+		cfg, ok := dest.Config.(map[string]interface{})
+		if ok {
+			hecCfg := models.HECConfig{}
+			if url, exists := cfg["url"].(string); exists {
+				hecCfg.URL = url
+			}
+			if apiKey, exists := cfg["api_key"].(string); exists {
+				hecCfg.APIKey = apiKey
+			}
+			if err := destinations.PostBatchToHEC(sourceName, hecCfg, events); err == nil {
+				atomic.AddInt64(&s.destMetrics[destID].ProcessedCount, int64(len(events)))
+				atomic.AddInt64(&s.destMetrics[destID].QueueLength, -int64(len(events)))
 			}
 		}
 	}
