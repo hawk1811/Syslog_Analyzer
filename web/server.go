@@ -1,30 +1,34 @@
 package web
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
+
+	"syslog-analyzer/destinations"
+	"syslog-analyzer/models"
 
 	"github.com/gorilla/mux"
 	"github.com/jung-kurt/gofpdf"
-	"syslog-analyzer/destinations"
-	"syslog-analyzer/models"
 )
 
 // Server handles HTTP requests and WebSocket connections
 type Server struct {
-	wsManager      *WSManager
-	destTester     *destinations.Tester
-	metricsHandler func() ([]models.SourceMetrics, models.GlobalMetrics)
-	sourcesHandler func() []models.SourceConfig
-	addSourceHandler func(models.SourceConfig) error
-	updateSourceHandler func(string, models.SourceConfig) error
-	deleteSourceHandler func(string) error
+	wsManager             *WSManager
+	destTester            *destinations.Tester
+	metricsHandler        func() ([]models.SourceMetrics, models.GlobalMetrics)
+	sourcesHandler        func() []models.SourceConfig
+	addSourceHandler      func(models.SourceConfig) error
+	updateSourceHandler   func(string, models.SourceConfig) error
+	deleteSourceHandler   func(string) error
 	validateSourceHandler func(models.SourceConfig) error
+	sourceMetrics         []models.SourceMetrics
+	globalMetrics         models.GlobalMetrics
+	metricsMutex          sync.RWMutex
 }
 
 // NewServer creates a new web server
@@ -55,33 +59,33 @@ func (s *Server) SetHandlers(
 // Start starts the web server
 func (s *Server) Start(port int) error {
 	s.wsManager.Start()
-	
+
 	router := mux.NewRouter()
-	
+
 	// Static files
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.HandlerFunc(s.serveStatic)))
-	
+
 	// API endpoints
 	router.HandleFunc("/api/metrics", s.handleAPIMetrics).Methods("GET")
 	router.HandleFunc("/api/sources", s.handleAPISources).Methods("GET", "POST")
 	router.HandleFunc("/api/sources/{name}", s.handleAPISource).Methods("PUT", "DELETE")
 	router.HandleFunc("/api/destinations/test", s.handleTestDestination).Methods("POST")
 	router.HandleFunc("/api/report", s.handleAPIReport).Methods("GET")
-	
+
 	// WebSocket endpoint
 	router.HandleFunc("/ws", s.wsManager.HandleConnection)
-	
+
 	// Main dashboard
 	router.HandleFunc("/", s.handleDashboard).Methods("GET")
-	
+
 	// Start metrics broadcaster
 	go s.broadcastMetrics()
-	
+
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: router,
 	}
-	
+
 	log.Printf("✓ Web server starting on port %d", port)
 	return server.ListenAndServe()
 }
@@ -89,7 +93,7 @@ func (s *Server) Start(port int) error {
 // serveStatic serves static files
 func (s *Server) serveStatic(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/static/")
-	
+
 	switch path {
 	case "style.css":
 		w.Header().Set("Content-Type", "text/css")
@@ -113,20 +117,20 @@ func convertSourceMetricsToJSON(sources []models.SourceMetrics) []map[string]int
 	result := make([]map[string]interface{}, len(sources))
 	for i, source := range sources {
 		result[i] = map[string]interface{}{
-			"name":             source.Name,
-			"source_ip":        source.SourceIP,
-			"port":             source.Port,
-			"protocol":         source.Protocol,
-			"realtime_eps":     source.RealTimeEPS,
-			"realtime_gbps":    source.RealTimeGBps,
-			"hourly_avg_logs":  source.HourlyAvgLogs,
-			"hourly_avg_gb":    source.HourlyAvgGB,
-			"daily_avg_logs":   source.DailyAvgLogs,
-			"daily_avg_gb":     source.DailyAvgGB,
-			"last_updated":     source.LastUpdated,
-			"is_active":        source.IsActive,
-			"is_receiving":     source.IsReceiving,
-			"last_message_at":  source.LastMessageAt,
+			"name":            source.Name,
+			"source_ip":       source.SourceIP,
+			"port":            source.Port,
+			"protocol":        source.Protocol,
+			"realtime_eps":    source.RealTimeEPS,
+			"realtime_gbps":   source.RealTimeGBps,
+			"hourly_avg_logs": source.HourlyAvgLogs,
+			"hourly_avg_gb":   source.HourlyAvgGB,
+			"daily_avg_logs":  source.DailyAvgLogs,
+			"daily_avg_gb":    source.DailyAvgGB,
+			"last_updated":    source.LastUpdated,
+			"is_active":       source.IsActive,
+			"is_receiving":    source.IsReceiving,
+			"last_message_at": source.LastMessageAt,
 		}
 	}
 	return result
@@ -137,16 +141,10 @@ func convertGlobalMetricsToJSON(global models.GlobalMetrics) map[string]interfac
 	return map[string]interface{}{
 		"total_realtime_eps":  global.TotalRealTimeEPS,
 		"total_realtime_gbps": global.TotalRealTimeGBps,
-		"total_hourly_avg": map[string]interface{}{
-			"hourly_avg_gb":   global.TotalHourlyAvg.HourlyAvgGB,
-			"hourly_avg_logs": global.TotalHourlyAvg.HourlyAvgLogs,
-		},
-		"total_daily_avg": map[string]interface{}{
-			"daily_avg_gb":   global.TotalDailyAvg.DailyAvgGB,
-			"daily_avg_logs": global.TotalDailyAvg.DailyAvgLogs,
-		},
-		"active_sources": global.ActiveSources,
-		"total_sources":  global.TotalSources,
+		"total_hourly_avg_gb": global.TotalHourlyAvgGB,
+		"total_daily_avg_gb":  global.TotalDailyAvgGB,
+		"active_sources":      global.ActiveSources,
+		"total_sources":       global.TotalSources,
 	}
 }
 
@@ -156,14 +154,14 @@ func (s *Server) handleAPIMetrics(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Metrics handler not set", http.StatusInternalServerError)
 		return
 	}
-	
+
 	sourceMetrics, globalMetrics := s.metricsHandler()
-	
+
 	response := map[string]interface{}{
 		"sources": convertSourceMetricsToJSON(sourceMetrics),
 		"global":  convertGlobalMetricsToJSON(globalMetrics),
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("⚠ Error encoding metrics response: %v", err)
@@ -180,16 +178,16 @@ func (s *Server) handleAPISources(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Sources handler not set", http.StatusInternalServerError)
 			return
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(s.sourcesHandler())
-		
+
 	case "POST":
 		if s.addSourceHandler == nil || s.validateSourceHandler == nil {
 			http.Error(w, "Add source handler not set", http.StatusInternalServerError)
 			return
 		}
-		
+
 		var newSource models.SourceConfig
 		if err := json.NewDecoder(r.Body).Decode(&newSource); err != nil {
 			log.Printf("⚠ Error decoding source JSON: %v", err)
@@ -198,12 +196,12 @@ func (s *Server) handleAPISources(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid JSON"})
 			return
 		}
-		
+
 		// Set default protocol if not specified
 		if newSource.Protocol == "" {
 			newSource.Protocol = "UDP"
 		}
-		
+
 		// Validate source
 		if err := s.validateSourceHandler(newSource); err != nil {
 			log.Printf("⚠ Source validation failed: %v", err)
@@ -212,7 +210,7 @@ func (s *Server) handleAPISources(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 			return
 		}
-		
+
 		// Add source
 		newSource.CreatedAt = time.Now()
 		if err := s.addSourceHandler(newSource); err != nil {
@@ -222,7 +220,7 @@ func (s *Server) handleAPISources(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Failed to add source: %v", err)})
 			return
 		}
-		
+
 		log.Printf("✓ Source added: %s", newSource.Name)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(newSource)
@@ -233,14 +231,14 @@ func (s *Server) handleAPISources(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAPISource(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	name := vars["name"]
-	
+
 	switch r.Method {
 	case "PUT":
 		if s.updateSourceHandler == nil || s.validateSourceHandler == nil {
 			http.Error(w, "Update source handler not set", http.StatusInternalServerError)
 			return
 		}
-		
+
 		var updatedSource models.SourceConfig
 		if err := json.NewDecoder(r.Body).Decode(&updatedSource); err != nil {
 			log.Printf("⚠ Error decoding updated source JSON: %v", err)
@@ -249,12 +247,12 @@ func (s *Server) handleAPISource(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid JSON"})
 			return
 		}
-		
+
 		// Set default protocol if not specified
 		if updatedSource.Protocol == "" {
 			updatedSource.Protocol = "UDP"
 		}
-		
+
 		// Validate updated source (skip name check if same name)
 		if updatedSource.Name != name {
 			if err := s.validateSourceHandler(updatedSource); err != nil {
@@ -265,7 +263,7 @@ func (s *Server) handleAPISource(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		
+
 		// Update source
 		updatedSource.CreatedAt = time.Now()
 		if err := s.updateSourceHandler(name, updatedSource); err != nil {
@@ -275,17 +273,17 @@ func (s *Server) handleAPISource(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Failed to update source: %v", err)})
 			return
 		}
-		
+
 		log.Printf("✓ Source updated: %s", updatedSource.Name)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(updatedSource)
-		
+
 	case "DELETE":
 		if s.deleteSourceHandler == nil {
 			http.Error(w, "Delete source handler not set", http.StatusInternalServerError)
 			return
 		}
-		
+
 		if err := s.deleteSourceHandler(name); err != nil {
 			log.Printf("✗ Failed to delete source: %v", err)
 			w.Header().Set("Content-Type", "application/json")
@@ -293,7 +291,7 @@ func (s *Server) handleAPISource(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Failed to delete source: %v", err)})
 			return
 		}
-		
+
 		log.Printf("✓ Source deleted: %s", name)
 		w.WriteHeader(http.StatusNoContent)
 	}
@@ -357,99 +355,89 @@ func (s *Server) handleAPIReport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Metrics handler not set", http.StatusInternalServerError)
 		return
 	}
-	
+
 	sourceMetrics, globalMetrics := s.metricsHandler()
-	
+
+	// Create PDF
 	pdf := gofpdf.New("P", "mm", "A4", "")
 	pdf.AddPage()
-	
+
 	// Title
 	pdf.SetFont("Arial", "B", 16)
-	pdf.Cell(40, 10, "Syslog Analysis Report")
-	pdf.Ln(12)
-	
-	// Timestamp
-	pdf.SetFont("Arial", "", 12)
-	pdf.Cell(40, 10, fmt.Sprintf("Generated: %s", time.Now().Format("2006-01-02 15:04:05")))
-	pdf.Ln(12)
-	
-	// Global metrics
-	pdf.SetFont("Arial", "B", 14)
-	pdf.Cell(40, 10, "Global Summary")
-	pdf.Ln(8)
-	
+	pdf.Cell(190, 10, "Syslog Analyzer Report")
+	pdf.Ln(20)
+
+	// Global Metrics
+	pdf.SetFont("Arial", "B", 12)
+	pdf.Cell(190, 10, "Global Metrics")
+	pdf.Ln(10)
+
 	pdf.SetFont("Arial", "", 10)
-	pdf.Cell(40, 6, fmt.Sprintf("Total Sources: %d", globalMetrics.TotalSources))
-	pdf.Ln(6)
-	pdf.Cell(40, 6, fmt.Sprintf("Active Sources: %d", globalMetrics.ActiveSources))
-	pdf.Ln(6)
-	pdf.Cell(40, 6, fmt.Sprintf("Total Real-time EPS: %.2f", globalMetrics.TotalRealTimeEPS))
-	pdf.Ln(6)
-	pdf.Cell(40, 6, fmt.Sprintf("Total Real-time GB/s: %.6f", globalMetrics.TotalRealTimeGBps))
-	pdf.Ln(6)
-	pdf.Cell(40, 6, fmt.Sprintf("Total Hourly Avg GB/s: %.5f", globalMetrics.TotalHourlyAvg.HourlyAvgGB))
-	pdf.Ln(6)
-	pdf.Cell(40, 6, fmt.Sprintf("Total Daily Avg GB/s: %.5f", globalMetrics.TotalDailyAvg.DailyAvgGB))
-	pdf.Ln(12)
-	
-	// Source details
-	pdf.SetFont("Arial", "B", 14)
-	pdf.Cell(40, 10, "Source Details")
-	pdf.Ln(8)
-	
-	for _, metrics := range sourceMetrics {
-		pdf.SetFont("Arial", "B", 12)
-		pdf.Cell(40, 8, metrics.Name)
-		pdf.Ln(6)
-		
-		pdf.SetFont("Arial", "", 10)
-		pdf.Cell(40, 6, fmt.Sprintf("  IP: %s, Port: %d", metrics.SourceIP, metrics.Port))
+	pdf.Cell(95, 10, fmt.Sprintf("Total Real-time EPS: %.2f", globalMetrics.TotalRealTimeEPS))
+	pdf.Ln(5)
+	pdf.Cell(95, 10, fmt.Sprintf("Total Real-time GB/s: %.2f", globalMetrics.TotalRealTimeGBps))
+	pdf.Ln(5)
+	pdf.Cell(95, 10, fmt.Sprintf("Total Hourly Average GB: %.2f", globalMetrics.TotalHourlyAvgGB))
+	pdf.Ln(5)
+	pdf.Cell(95, 10, fmt.Sprintf("Total Daily Average GB: %.2f", globalMetrics.TotalDailyAvgGB))
+	pdf.Ln(5)
+	pdf.Cell(95, 10, fmt.Sprintf("Active Sources: %d", globalMetrics.ActiveSources))
+	pdf.Ln(5)
+	pdf.Cell(95, 10, fmt.Sprintf("Total Sources: %d", globalMetrics.TotalSources))
+	pdf.Ln(15)
+
+	// Source Metrics
+	pdf.SetFont("Arial", "B", 12)
+	pdf.Cell(190, 10, "Source Metrics")
+	pdf.Ln(10)
+
+	pdf.SetFont("Arial", "", 10)
+	for _, source := range sourceMetrics {
+		pdf.Cell(190, 10, fmt.Sprintf("Source: %s (%s:%d)", source.Name, source.SourceIP, source.Port))
 		pdf.Ln(5)
-		pdf.Cell(40, 6, fmt.Sprintf("  Real-time EPS: %.2f", metrics.RealTimeEPS))
+		pdf.Cell(95, 10, fmt.Sprintf("Real-time EPS: %.2f", source.RealTimeEPS))
 		pdf.Ln(5)
-		pdf.Cell(40, 6, fmt.Sprintf("  Real-time GB/s: %.6f", metrics.RealTimeGBps))
+		pdf.Cell(95, 10, fmt.Sprintf("Real-time GB/s: %.2f", source.RealTimeGBps))
 		pdf.Ln(5)
-		pdf.Cell(40, 6, fmt.Sprintf("  Hourly Avg Logs: %d", metrics.HourlyAvgLogs))
+		pdf.Cell(95, 10, fmt.Sprintf("Hourly Average GB: %.2f", source.HourlyAvgGB))
 		pdf.Ln(5)
-		pdf.Cell(40, 6, fmt.Sprintf("  Daily Avg Logs: %d", metrics.DailyAvgLogs))
-		pdf.Ln(8)
+		pdf.Cell(95, 10, fmt.Sprintf("Daily Average GB: %.2f", source.DailyAvgGB))
+		pdf.Ln(5)
+		pdf.Cell(95, 10, fmt.Sprintf("Status: %s", getSourceStatus(source)))
+		pdf.Ln(10)
 	}
-	
+
 	// Output PDF
-	var buf bytes.Buffer
-	if err := pdf.Output(&buf); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate PDF"})
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", "attachment; filename=syslog-report.pdf")
+	if err := pdf.Output(w); err != nil {
+		log.Printf("⚠ Error generating PDF: %v", err)
+		http.Error(w, "Failed to generate report", http.StatusInternalServerError)
 		return
 	}
-	
-	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Content-Disposition", "attachment; filename=syslog_report.pdf")
-	w.Write(buf.Bytes())
 }
 
 // broadcastMetrics periodically broadcasts metrics to WebSocket clients
 func (s *Server) broadcastMetrics() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
-	
+
 	for range ticker.C {
 		if s.metricsHandler != nil {
 			sourceMetrics, globalMetrics := s.metricsHandler()
-			
+
 			// Convert to proper JSON format for frontend
 			response := map[string]interface{}{
 				"sources": convertSourceMetricsToJSON(sourceMetrics),
 				"global":  convertGlobalMetricsToJSON(globalMetrics),
 			}
-			
+
 			data, err := json.Marshal(response)
 			if err != nil {
 				log.Printf("Error marshaling WebSocket data: %v", err)
 				continue
 			}
-			
+
 			s.wsManager.BroadcastRaw(data)
 		}
 	}
@@ -458,4 +446,56 @@ func (s *Server) broadcastMetrics() {
 // GetWSManager returns the WebSocket manager
 func (s *Server) GetWSManager() *WSManager {
 	return s.wsManager
+}
+
+// Update global metrics
+func (s *Server) updateGlobalMetrics() {
+	s.metricsMutex.Lock()
+	defer s.metricsMutex.Unlock()
+
+	var totalRealTimeEPS float64
+	var totalRealTimeGBps float64
+	var totalHourlyAvgGB float64
+	var totalDailyAvgGB float64
+	var activeSources int
+
+	for _, source := range s.sourceMetrics {
+		if source.IsActive {
+			totalRealTimeEPS += source.RealTimeEPS
+			totalRealTimeGBps += source.RealTimeGBps
+			totalHourlyAvgGB += source.HourlyAvgGB
+			totalDailyAvgGB += source.DailyAvgGB
+			activeSources++
+		}
+	}
+
+	s.globalMetrics = models.GlobalMetrics{
+		TotalRealTimeEPS:  totalRealTimeEPS,
+		TotalRealTimeGBps: totalRealTimeGBps,
+		TotalHourlyAvgGB:  totalHourlyAvgGB,
+		TotalDailyAvgGB:   totalDailyAvgGB,
+		ActiveSources:     activeSources,
+		TotalSources:      len(s.sourceMetrics),
+	}
+}
+
+// handleGetMetrics handles metrics retrieval
+func (s *Server) handleGetMetrics(w http.ResponseWriter, r *http.Request) {
+	s.metricsMutex.RLock()
+	defer s.metricsMutex.RUnlock()
+
+	response := map[string]interface{}{
+		"sources": s.sourceMetrics,
+		"global":  s.globalMetrics,
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
+// handleGetGlobalMetrics handles global metrics retrieval
+func (s *Server) handleGetGlobalMetrics(w http.ResponseWriter, r *http.Request) {
+	s.metricsMutex.RLock()
+	defer s.metricsMutex.RUnlock()
+
+	json.NewEncoder(w).Encode(s.globalMetrics)
 }
