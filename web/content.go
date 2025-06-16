@@ -967,68 +967,67 @@ const JSContent = `class SyslogDashboard {
                 statusText = 'Inactive';
             }
             
-            row.innerHTML = ` + "`" + `
-                <td>
-                    <div class="source-info">
-                        <div class="source-name">${source.name || 'Unknown'}</div>
-                        <div class="source-address">${source.source_ip || 'N/A'}:${source.port || 'N/A'} (${source.protocol || 'N/A'})</div>
-                        <span class="status-badge ${statusClass}">${statusText}</span>
-                        <div class="simulation-status">
-                            <span class="simulation-badge ${source.simulation_mode ? 'simulation-on' : 'simulation-off'}">
-                                ${source.simulation_mode ? 'Simulation Mode: ON' : 'Simulation Mode: OFF'}
-                            </span>
-                            <span class="queue-info">Queue: ${source.queue_length || 0} logs</span>
-                            <span class="processed-info">Processed: ${source.processed_count || 0} logs</span>
-                        </div>
-                    </div>
-                </td>
-                <td>
-                    <div class="metrics-column">
-                        <div class="metric-row">
-                            <span class="metric-label">EPS:</span>
-                            <span class="metric-number">${(source.realtime_eps || 0).toFixed(2)}</span>
-                        </div>
-                        <div class="metric-row">
-                            <span class="metric-label">GB/s:</span>
-                            <span class="metric-number">${(source.realtime_gbps || 0).toFixed(6)}</span>
-                        </div>
-                    </div>
-                </td>
-                <td>
-                    <div class="metrics-column">
-                        <div class="metric-row">
-                            <span class="metric-label">Logs:</span>
-                            <span class="metric-number">${(source.hourly_avg_logs || 0).toLocaleString()}</span>
-                        </div>
-                        <div class="metric-row">
-                            <span class="metric-label">GB:</span>
-                            <span class="metric-number">${(source.hourly_avg_gb || 0).toFixed(4)}</span>
-                        </div>
-                    </div>
-                </td>
-                <td>
-                    <div class="metrics-column">
-                        <div class="metric-row">
-                            <span class="metric-label">Logs:</span>
-                            <span class="metric-number">${(source.daily_avg_logs || 0).toLocaleString()}</span>
-                        </div>
-                        <div class="metric-row">
-                            <span class="metric-label">GB:</span>
-                            <span class="metric-number">${(source.daily_avg_gb || 0).toFixed(4)}</span>
-                        </div>
-                    </div>
-                </td>
-                <td>
-                    <div class="button-group">
-                        <button onclick="dashboard.editSource('${source.name || ''}')" class="btn btn-secondary btn-action">
-                            Edit
-                        </button>
-                        <button onclick="dashboard.deleteSource('${source.name || ''}')" class="btn btn-danger btn-action">
-                            Delete
-                        </button>
-                    </div>
-                </td>
-            ` + "`" + `;
+            row.innerHTML = 
+                "<td>" +
+                    "<div class=\"source-info\">" +
+                        "<div class=\"source-name\">" + (source.name || "Unknown") + "</div>" +
+                        "<div class=\"source-address\">" + (source.source_ip || "N/A") + ":" + (source.port || "N/A") + " (" + (source.protocol || "N/A") + ")</div>" +
+                        "<span class=\"status-badge " + statusClass + "\">" + statusText + "</span>" +
+                        "<div class=\"simulation-status\">" +
+                            "<span class=\"simulation-badge " + (source.simulation_mode ? "simulation-on" : "simulation-off") + "\">" +
+                                (source.simulation_mode ? "Simulation Mode: ON" : "Simulation Mode: OFF") +
+                            "</span>" +
+                            "<span class=\"queue-info\">Queue: " + (source.queue_length || 0) + " logs</span>" +
+                            "<span class=\"processed-info\">Processed: " + (source.processed_count || 0) + " logs</span>" +
+                        "</div>" +
+                    "</div>" +
+                "</td>" +
+                "<td>" +
+                    "<div class=\"metrics-column\">" +
+                        "<div class=\"metric-row\">" +
+                            "<span class=\"metric-label\">EPS:</span>" +
+                            "<span class=\"metric-number\">" + (source.realtime_eps || 0).toFixed(2) + "</span>" +
+                        "</div>" +
+                        "<div class=\"metric-row\">" +
+                            "<span class=\"metric-label\">GB/s:</span>" +
+                            "<span class=\"metric-number\">" + (source.realtime_gbps || 0).toFixed(6) + "</span>" +
+                        "</div>" +
+                    "</div>" +
+                "</td>" +
+                "<td>" +
+                    "<div class=\"metrics-column\">" +
+                        "<div class=\"metric-row\">" +
+                            "<span class=\"metric-label\">Logs:</span>" +
+                            "<span class=\"metric-number\">" + (source.hourly_avg_logs || 0).toLocaleString() + "</span>" +
+                        "</div>" +
+                        "<div class=\"metric-row\">" +
+                            "<span class=\"metric-label\">GB:</span>" +
+                            "<span class=\"metric-number\">" + (source.hourly_avg_gb || 0).toFixed(4) + "</span>" +
+                        "</div>" +
+                    "</div>" +
+                "</td>" +
+                "<td>" +
+                    "<div class=\"metrics-column\">" +
+                        "<div class=\"metric-row\">" +
+                            "<span class=\"metric-label\">Logs:</span>" +
+                            "<span class=\"metric-number\">" + (source.daily_avg_logs || 0).toLocaleString() + "</span>" +
+                        "</div>" +
+                        "<div class=\"metric-row\">" +
+                            "<span class=\"metric-label\">GB:</span>" +
+                            "<span class=\"metric-number\">" + (source.daily_avg_gb || 0).toFixed(4) + "</span>" +
+                        "</div>" +
+                    "</div>" +
+                "</td>" +
+                "<td>" +
+                    "<div class=\"button-group\">" +
+                        "<button onclick=\"dashboard.editSource('" + (source.name || "") + "')\" class=\"btn btn-secondary btn-action\">" +
+                            "Edit" +
+                        "</button>" +
+                        "<button onclick=\"dashboard.deleteSource('" + (source.name || "") + "')\" class=\"btn btn-danger btn-action\">" +
+                            "Delete" +
+                        "</button>" +
+                    "</div>" +
+                "</td>";
             
             tbody.appendChild(row);
         });
@@ -1111,88 +1110,80 @@ const JSContent = `class SyslogDashboard {
         const testMessage = existingDest ? existingDest.test_message : '';
         
         // FIX 1: Removed Destination Name field, only keeping type selector
-        destDiv.innerHTML = ` + "`" + `
-            <div class="destination-header">
-                <div class="destination-title">Destination ${this.destinationCounter}</div>
-                <button type="button" class="destination-remove" onclick="dashboard.removeDestination('${destId}')">&times;</button>
-            </div>
-            
-            <div class="destination-config">
-                <div class="form-group">
-                    <label>Destination Type:</label>
-                    <select class="dest-type" onchange="dashboard.updateDestinationConfig('${destId}')">
-                        <option value="storage" ${destType === 'storage' ? 'selected' : ''}>Storage</option>
-                        <option value="hec" ${destType === 'hec' ? 'selected' : ''}>HEC (HTTP Event Collector)</option>
-                    </select>
-                </div>
-            </div>
-            
-            <div class="dest-config-fields">
-                ${this.getDestinationConfigHTML(destType, destConfig)}
-            </div>
-            
-            <div class="destination-actions">
-                <button type="button" class="btn btn-secondary test-button" onclick="dashboard.testDestination('${destId}')">
-                    Test Connection
-                </button>
-                
-                <div class="test-status ${testStatus}" id="test-status-${destId}">
-                    ${testMessage || 'Not tested'}
-                </div>
-                
-                <div class="destination-enable">
-                    <input type="checkbox" class="dest-enabled" ${destEnabled ? 'checked' : ''} ${!destTested ? 'disabled' : ''}>
-                    <label>Enable</label>
-                </div>
-            </div>
-        ` + "`" + `;
+        destDiv.innerHTML = 
+            "<div class=\"destination-header\">" +
+                "<div class=\"destination-title\">Destination " + this.destinationCounter + "</div>" +
+                "<button type=\"button\" class=\"destination-remove\" onclick=\"dashboard.removeDestination('" + destId + "')\">&times;</button>" +
+            "</div>" +
+            "<div class=\"destination-config\">" +
+                "<div class=\"form-group\">" +
+                    "<label>Destination Type:</label>" +
+                    "<select class=\"dest-type\" onchange=\"dashboard.updateDestinationConfig('" + destId + "')\">" +
+                        "<option value=\"storage\"" + (destType == "storage" ? " selected" : "") + ">Storage</option>" +
+                        "<option value=\"hec\"" + (destType == "hec" ? " selected" : "") + ">HEC (HTTP Event Collector)</option>" +
+                    "</select>" +
+                "</div>" +
+            "</div>" +
+            "<div class=\"dest-config-fields\">" +
+                this.getDestinationConfigHTML(destType, destConfig) +
+            "</div>" +
+            "<div class=\"destination-actions\">" +
+                "<button type=\"button\" class=\"btn btn-secondary test-button\" onclick=\"dashboard.testDestination('" + destId + "')\">" +
+                    "Test Connection" +
+                "</button>" +
+                "<div class=\"test-status " + testStatus + "\" id=\"test-status-" + destId + "\">" +
+                    (testMessage || "Not tested") +
+                "</div>" +
+                "<div class=\"destination-enable\">" +
+                    "<input type=\"checkbox\" class=\"dest-enabled\"" + (destEnabled ? " checked" : "") + (!destTested ? " disabled" : "") + ">" +
+                    "<label>Enable</label>" +
+                "</div>" +
+            "</div>";
         
         container.appendChild(destDiv);
     }
 
     getDestinationConfigHTML(type, config) {
-        if (type === 'storage') {
-            return ` + "`" + `
-                <div class="form-group">
-                    <label>Storage Path:</label>
-                    <input type="text" class="dest-config-path" value="${config.path || ''}" placeholder="C:\\logs\\test or //share/logs/test">
-                </div>
-            ` + "`" + `;
-        } else if (type === 'hec') {
-            return ` + "`" + `
-                <div class="form-group">
-                    <label>HEC URL:</label>
-                    <input type="text" class="dest-config-url" value="${config.url || ''}" placeholder="https://splunk.example.com:8088/services/collector">
-                </div>
-                <div class="form-group">
-                    <label>API Key:</label>
-                    <input type="text" class="dest-config-apikey" value="${config.api_key || ''}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-                </div>
-            ` + "`" + `;
+        if (type === "storage") {
+            return 
+                "<div class=\"form-group\">" +
+                    "<label>Storage Path:</label>" +
+                    "<input type=\"text\" class=\"dest-config-path\" value=\"" + (config.path || "") + "\" placeholder=\"C:\\\\logs\\\\test or //share/logs/test\">" +
+                "</div>";
+        } else if (type === "hec") {
+            return 
+                "<div class=\"form-group\">" +
+                    "<label>HEC URL:</label>" +
+                    "<input type=\"text\" class=\"dest-config-url\" value=\"" + (config.url || "") + "\" placeholder=\"https://splunk.example.com:8088/services/collector\">" +
+                "</div>" +
+                "<div class=\"form-group\">" +
+                    "<label>API Key:</label>" +
+                    "<input type=\"text\" class=\"dest-config-apikey\" value=\"" + (config.api_key || "") + "\" placeholder=\"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx\">" +
+                "</div>";
         }
-        return '';
+        return "";
     }
 
     updateDestinationConfig(destId) {
-        const destDiv = document.querySelector(` + "`" + `[data-dest-id="${destId}"]` + "`" + `);
-        const typeSelect = destDiv.querySelector('.dest-type');
-        const configFields = destDiv.querySelector('.dest-config-fields');
+        const destDiv = document.querySelector("[data-dest-id=\"" + destId + "\"]");
+        const typeSelect = destDiv.querySelector(".dest-type");
+        const configFields = destDiv.querySelector(".dest-config-fields");
         
         configFields.innerHTML = this.getDestinationConfigHTML(typeSelect.value, {});
         
         // Reset test status
-        const testStatus = destDiv.querySelector(` + "`" + `#test-status-${destId}` + "`" + `);
-        testStatus.className = 'test-status idle';
-        testStatus.textContent = 'Not tested';
+        const testStatus = destDiv.querySelector("#test-status-" + destId);
+        testStatus.className = "test-status idle";
+        testStatus.textContent = "Not tested";
         
         // Disable enable checkbox
-        const enableCheckbox = destDiv.querySelector('.dest-enabled');
+        const enableCheckbox = destDiv.querySelector(".dest-enabled");
         enableCheckbox.checked = false;
         enableCheckbox.disabled = true;
     }
 
     removeDestination(destId) {
-        const destDiv = document.querySelector(` + "`" + `[data-dest-id="${destId}"]` + "`" + `);
+        const destDiv = document.querySelector("[data-dest-id=\"" + destId + "\"]");
         if (destDiv) {
             destDiv.remove();
         }
@@ -1200,37 +1191,37 @@ const JSContent = `class SyslogDashboard {
 
     // FIX 2: Fixed testDestination to properly send source IP
     async testDestination(destId) {
-        const destDiv = document.querySelector(` + "`" + `[data-dest-id="${destId}"]` + "`" + `);
-        const testStatus = destDiv.querySelector(` + "`" + `#test-status-${destId}` + "`" + `);
-        const enableCheckbox = destDiv.querySelector('.dest-enabled');
+        const destDiv = document.querySelector("[data-dest-id=\"" + destId + "\"]");
+        const testStatus = destDiv.querySelector("#test-status-" + destId);
+        const enableCheckbox = destDiv.querySelector(".dest-enabled");
         
         // FIX 2: Properly get both source name and IP
-        const sourceName = document.getElementById('sourceName')?.value?.trim();
-        const sourceIP = document.getElementById('sourceIP')?.value?.trim();
+        const sourceName = document.getElementById("sourceName")?.value?.trim();
+        const sourceIP = document.getElementById("sourceIP")?.value?.trim();
         
         if (!sourceName || !sourceIP) {
-            alert('Please enter both source name and IP address before testing destinations');
+            alert("Please enter both source name and IP address before testing destinations");
             return;
         }
         
         // Collect destination data
         const destination = this.collectSingleDestination(destId);
         if (!destination) {
-            alert('Invalid destination configuration');
+            alert("Invalid destination configuration");
             return;
         }
         
         // Update status to testing
-        testStatus.className = 'test-status testing';
-        testStatus.textContent = 'Testing...';
+        testStatus.className = "test-status testing";
+        testStatus.textContent = "Testing...";
         enableCheckbox.checked = false;
         enableCheckbox.disabled = true;
         
         try {
-            const response = await fetch('/api/destinations/test', {
-                method: 'POST',
+            const response = await fetch("/api/destinations/test", {
+                method: "POST",
                 headers: {
-                    'Content-Type': 'application/json',
+                    "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
                     source_name: sourceName,
@@ -1242,42 +1233,42 @@ const JSContent = `class SyslogDashboard {
             const result = await response.json();
             
             if (result.success) {
-                testStatus.className = 'test-status success';
+                testStatus.className = "test-status success";
                 testStatus.textContent = result.message;
                 enableCheckbox.disabled = false;
             } else {
-                testStatus.className = 'test-status failed';
+                testStatus.className = "test-status failed";
                 testStatus.textContent = result.message;
                 enableCheckbox.disabled = true;
             }
         } catch (error) {
-            console.error('Error testing destination:', error);
-            testStatus.className = 'test-status failed';
-            testStatus.textContent = 'Test failed: ' + error.message;
+            console.error("Error testing destination:", error);
+            testStatus.className = "test-status failed";
+            testStatus.textContent = "Test failed: " + error.message;
             enableCheckbox.disabled = true;
         }
     }
 
     collectSingleDestination(destId) {
-        const destDiv = document.querySelector(` + "`" + `[data-dest-id="${destId}"]` + "`" + `);
+        const destDiv = document.querySelector("[data-dest-id=\"" + destId + "\"]");
         if (!destDiv) {
             return null;
         }
         
-        const type = destDiv.querySelector('.dest-type').value;
-        const enabled = destDiv.querySelector('.dest-enabled').checked;
+        const type = destDiv.querySelector(".dest-type").value;
+        const enabled = destDiv.querySelector(".dest-enabled").checked;
         
         let config = {};
-        if (type === 'storage') {
-            const pathInput = destDiv.querySelector('.dest-config-path');
+        if (type === "storage") {
+            const pathInput = destDiv.querySelector(".dest-config-path");
             if (!pathInput) {
                 return null;
             }
             const path = pathInput.value;
             config = { path };
-        } else if (type === 'hec') {
-            const urlInput = destDiv.querySelector('.dest-config-url');
-            const apiKeyInput = destDiv.querySelector('.dest-config-apikey');
+        } else if (type === "hec") {
+            const urlInput = destDiv.querySelector(".dest-config-url");
+            const apiKeyInput = destDiv.querySelector(".dest-config-apikey");
             if (!urlInput || !apiKeyInput) {
                 return null;
             }
@@ -1289,12 +1280,12 @@ const JSContent = `class SyslogDashboard {
         return {
             id: destId,
             type: type,
-            name: ` + "`" + `${type}_destination` + "`" + `, // FIX 1: Auto-generate name instead of user input
+            name: type + "_destination", // Auto-generate name instead of user input
             config: config,
             enabled: enabled,
             tested: false,
-            test_status: 'idle',
-            test_message: ''
+            test_status: "idle",
+            test_message: ""
         };
     }
 
@@ -1315,31 +1306,31 @@ const JSContent = `class SyslogDashboard {
 
     async addSource() {
         const formData = {
-            name: document.getElementById('sourceName').value,
-            ip: document.getElementById('sourceIP').value,
-            port: parseInt(document.getElementById('sourcePort').value),
-            protocol: document.getElementById('sourceProtocol').value,
+            name: document.getElementById("sourceName").value,
+            ip: document.getElementById("sourceIP").value,
+            port: parseInt(document.getElementById("sourcePort").value),
+            protocol: document.getElementById("sourceProtocol").value,
             destinations: this.collectDestinations(),
-            simulation_mode: document.getElementById('simulationMode').checked
+            simulation_mode: document.getElementById("simulationMode").checked
         };
 
         try {
             let response;
             if (this.editingSourceName) {
                 // Update existing source
-                response = await fetch(`/api/sources/${encodeURIComponent(this.editingSourceName)}`, {
-                    method: 'PUT',
+                response = await fetch("/api/sources/" + encodeURIComponent(this.editingSourceName), {
+                    method: "PUT",
                     headers: {
-                        'Content-Type': 'application/json',
+                        "Content-Type": "application/json",
                     },
                     body: JSON.stringify(formData)
                 });
             } else {
                 // Create new source
-                response = await fetch('/api/sources', {
-                    method: 'POST',
+                response = await fetch("/api/sources", {
+                    method: "POST",
                     headers: {
-                        'Content-Type': 'application/json',
+                        "Content-Type": "application/json",
                     },
                     body: JSON.stringify(formData)
                 });
@@ -1353,13 +1344,13 @@ const JSContent = `class SyslogDashboard {
                 }, 500);
             } else {
                 const result = await response.json();
-                alert(`Error ${this.editingSourceName ? 'updating' : 'adding'} source: ${result.error || 'Unknown error'}`);
+                alert("Error " + (this.editingSourceName ? "updating" : "adding") + " source: " + (result.error || "Unknown error"));
                 // Don't hide modal on error
                 return;
             }
         } catch (error) {
-            console.error(`Error ${this.editingSourceName ? 'updating' : 'adding'} source:`, error);
-            alert(`Error ${this.editingSourceName ? 'updating' : 'adding'} source: ${error.message}`);
+            console.error("Error " + (this.editingSourceName ? "updating" : "adding") + " source:", error);
+            alert("Error " + (this.editingSourceName ? "updating" : "adding") + " source: " + error.message);
             // Don't hide modal on error
             return;
         }
@@ -1367,40 +1358,40 @@ const JSContent = `class SyslogDashboard {
 
     async editSource(name) {
         try {
-            const response = await fetch('/api/sources');
+            const response = await fetch("/api/sources");
             const sources = await response.json();
             const source = sources.find(s => s.name === name);
             
             if (source) {
                 this.showEditSourceModal(source);
             } else {
-                alert('Source not found');
+                alert("Source not found");
             }
         } catch (error) {
-            console.error('Error loading source for edit:', error);
-            alert('Error loading source for edit: ' + error.message);
+            console.error("Error loading source for edit:", error);
+            alert("Error loading source for edit: " + error.message);
         }
     }
 
     async deleteSource(name) {
-        if (!confirm(` + "`" + `Are you sure you want to delete source "${name}"?` + "`" + `)) {
+        if (!confirm("Are you sure you want to delete source \"" + name + "\"?")) {
             return;
         }
 
         try {
-            const response = await fetch(`/api/sources/${encodeURIComponent(name)}`, {
-                method: 'DELETE'
+            const response = await fetch("/api/sources/" + encodeURIComponent(name), {
+                method: "DELETE"
             });
 
             if (response.ok) {
                 this.loadInitialData(); // Refresh data
             } else {
                 const result = await response.json();
-                alert('Error deleting source: ' + (result.error || 'Unknown error'));
+                alert("Error deleting source: " + (result.error || "Unknown error"));
             }
         } catch (error) {
-            console.error('Error deleting source:', error);
-            alert('Error deleting source: ' + error.message);
+            console.error("Error deleting source:", error);
+            alert("Error deleting source: " + error.message);
         }
     }
 
