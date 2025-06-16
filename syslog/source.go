@@ -213,12 +213,19 @@ func (s *SyslogSource) calculateMetrics() {
 	s.lastUpdate = now
 }
 
-// GetMetrics returns current metrics for this source
-func (s *SyslogSource) GetMetrics() models.SourceMetrics {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
+// CalculateMetrics calculates and updates the source's metrics
+func (s *SyslogSource) CalculateMetrics() {
+	s.calculateMetrics()
+}
 
-	return *s.metrics
+// GetQueueLength returns the current length of the source's queue
+func (s *SyslogSource) GetQueueLength() int {
+	return len(s.queue)
+}
+
+// GetMetrics returns the source's current metrics
+func (s *SyslogSource) GetMetrics() *models.SourceMetrics {
+	return s.metrics
 }
 
 // IsRunning returns whether the source is currently running

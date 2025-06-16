@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"syslog-analyzer/config"
@@ -226,6 +227,14 @@ func (app *Application) getMetrics() ([]models.SourceMetrics, models.GlobalMetri
 				sourceMetrics[i], sourceMetrics[j] = sourceMetrics[j], sourceMetrics[i]
 			}
 		}
+	}
+
+	// Update metrics for each source
+	for _, source := range app.sources {
+		source.CalculateMetrics()
+		metrics := source.GetMetrics()
+		metrics.QueueLength = int64(source.GetQueueLength())
+		metrics.ProcessedCount = atomic.LoadInt64(&source.ProcessedCount)
 	}
 
 	return sourceMetrics, app.GetGlobalMetrics()
