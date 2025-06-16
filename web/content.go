@@ -1,6 +1,5 @@
 package web
 
-
 // HTMLContent contains the dashboard HTML
 const HTMLContent = `<!DOCTYPE html>
 <html lang="en">
@@ -117,10 +116,10 @@ const HTMLContent = `<!DOCTYPE html>
                 </div>
                 
                 <div class="form-group">
-                    <label for="calculationMode">Calculation Mode:</label>
+                    <label for="simulationMode">Simulation Mode:</label>
                     <div class="toggle-container">
-                        <input type="checkbox" id="calculationMode" class="toggle-input" checked>
-                        <label for="calculationMode" class="toggle-label">
+                        <input type="checkbox" id="simulationMode" class="toggle-input" checked>
+                        <label for="simulationMode" class="toggle-label">
                             <span class="toggle-slider"></span>
                             <span class="toggle-text">
                                 <span class="on-text">ON</span>
@@ -739,6 +738,33 @@ form {
     width: auto;
 }
 
+.simulation-status {
+    margin-top: 5px;
+    display: flex;
+    gap: 10px;
+    font-size: 0.9rem;
+}
+
+.simulation-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 500;
+}
+
+.simulation-on {
+    background: #d5f5d7;
+    color: #2ecc71;
+}
+
+.simulation-off {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.queue-info, .processed-info {
+    color: #7f8c8d;
+}
+
 @media (max-width: 768px) {
     .container {
         padding: 10px;
@@ -947,6 +973,13 @@ const JSContent = `class SyslogDashboard {
                         <div class="source-name">${source.name || 'Unknown'}</div>
                         <div class="source-address">${source.source_ip || 'N/A'}:${source.port || 'N/A'} (${source.protocol || 'N/A'})</div>
                         <span class="status-badge ${statusClass}">${statusText}</span>
+                        <div class="simulation-status">
+                            <span class="simulation-badge ${source.simulation_mode ? 'simulation-on' : 'simulation-off'}">
+                                ${source.simulation_mode ? 'Simulation Mode: ON' : 'Simulation Mode: OFF'}
+                            </span>
+                            <span class="queue-info">Queue: ${source.queue_length || 0} logs</span>
+                            <span class="processed-info">Processed: ${source.processed_count || 0} logs</span>
+                        </div>
                     </div>
                 </td>
                 <td>
@@ -1005,7 +1038,7 @@ const JSContent = `class SyslogDashboard {
         // Reset form for new source
         document.getElementById('addSourceForm').reset();
         document.getElementById('sourceProtocol').value = 'UDP';
-        document.getElementById('calculationMode').checked = true;
+        document.getElementById('simulationMode').checked = true;
         
         // Clear destinations
         document.getElementById('destinationsContainer').innerHTML = '';
@@ -1018,6 +1051,9 @@ const JSContent = `class SyslogDashboard {
         this.editingSourceName = null;
         
         document.getElementById('addSourceModal').style.display = 'block';
+
+        const submitBtn = document.querySelector('#addSourceForm .btn.btn-primary');
+        if (submitBtn) submitBtn.textContent = 'Add Source';
     }
 
     showEditSourceModal(source) {
@@ -1026,7 +1062,7 @@ const JSContent = `class SyslogDashboard {
         document.getElementById('sourceIP').value = source.ip;
         document.getElementById('sourcePort').value = source.port;
         document.getElementById('sourceProtocol').value = source.protocol;
-        document.getElementById('calculationMode').checked = source.calculation_mode !== false;
+        document.getElementById('simulationMode').checked = source.simulation_mode !== false;
         
         // Clear and populate destinations
         const container = document.getElementById('destinationsContainer');
@@ -1046,6 +1082,9 @@ const JSContent = `class SyslogDashboard {
         this.editingSourceName = source.name;
         
         document.getElementById('addSourceModal').style.display = 'block';
+
+        const submitBtnEdit = document.querySelector('#addSourceForm .btn.btn-primary');
+        if (submitBtnEdit) submitBtnEdit.textContent = 'Apply Changes';
     }
 
     hideAddSourceModal() {
@@ -1281,7 +1320,7 @@ const JSContent = `class SyslogDashboard {
             port: parseInt(document.getElementById('sourcePort').value),
             protocol: document.getElementById('sourceProtocol').value,
             destinations: this.collectDestinations(),
-            calculation_mode: document.getElementById('calculationMode').checked
+            simulation_mode: document.getElementById('simulationMode').checked
         };
 
         try {

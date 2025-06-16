@@ -6,14 +6,14 @@ import (
 
 // Destination represents a single destination configuration
 type Destination struct {
-	ID          string        `json:"id"`
-	Type        string        `json:"type"` // "storage" or "hec"
-	Name        string        `json:"name"`
-	Config      interface{}   `json:"config"` // StorageConfig or HECConfig
-	Enabled     bool          `json:"enabled"`
-	Tested      bool          `json:"tested"`
-	TestStatus  string        `json:"test_status"`  // "idle", "testing", "success", "failed"
-	TestMessage string        `json:"test_message"` // Error message or success message
+	ID          string      `json:"id"`
+	Type        string      `json:"type"` // "storage" or "hec"
+	Name        string      `json:"name"`
+	Config      interface{} `json:"config"` // StorageConfig or HECConfig
+	Enabled     bool        `json:"enabled"`
+	Tested      bool        `json:"tested"`
+	TestStatus  string      `json:"test_status"`  // "idle", "testing", "success", "failed"
+	TestMessage string      `json:"test_message"` // Error message or success message
 }
 
 // StorageConfig represents storage destination configuration
@@ -29,13 +29,13 @@ type HECConfig struct {
 
 // SourceConfig represents a syslog source configuration
 type SourceConfig struct {
-	Name            string        `json:"name"`
-	IP              string        `json:"ip"`
-	Port            int           `json:"port"`
-	Protocol        string        `json:"protocol"`
-	Destinations    []Destination `json:"destinations"`
-	CalculationMode bool          `json:"calculation_mode"`
-	CreatedAt       time.Time     `json:"created_at"`
+	Name           string        `json:"name"`
+	IP             string        `json:"ip"`
+	Port           int           `json:"port"`
+	Protocol       string        `json:"protocol"`
+	Destinations   []Destination `json:"destinations"`
+	SimulationMode bool          `json:"simulation_mode"`
+	CreatedAt      time.Time     `json:"created_at"`
 }
 
 // GlobalSettings contains application-wide configuration
@@ -67,6 +67,8 @@ type SourceMetrics struct {
 	IsActive       bool      `json:"is_active"`
 	IsReceiving    bool      `json:"is_receiving"`
 	LastMessageAt  time.Time `json:"last_message_at"`
+	QueueLength    int64     `json:"queue_length"`
+	ProcessedCount int64     `json:"processed_count"`
 }
 
 // GlobalMetrics represents aggregated metrics across all sources
@@ -88,8 +90,8 @@ type MetricDataPoint struct {
 
 // TestDestinationRequest represents the test request payload
 type TestDestinationRequest struct {
-	SourceName string      `json:"source_name"`
-	SourceIP   string      `json:"source_ip"`
+	SourceName  string      `json:"source_name"`
+	SourceIP    string      `json:"source_ip"`
 	Destination Destination `json:"destination"`
 }
 

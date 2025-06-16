@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"encoding/json"
+	"syslog-analyzer/destinations"
 	"syslog-analyzer/models"
 )
 
@@ -26,6 +28,8 @@ type SyslogSource struct {
 	msgMutex        sync.RWMutex
 	isRunning       bool
 	mutex           sync.RWMutex
+	queue           chan []byte
+	processedCount  int64
 }
 
 // ApplicationInterface defines the interface for application methods needed by SyslogSource
@@ -47,6 +51,7 @@ func NewSyslogSource(config models.SourceConfig) *SyslogSource {
 			Port:     config.Port,
 			Protocol: config.Protocol,
 		},
+		queue: make(chan []byte),
 	}
 }
 
@@ -54,23 +59,24 @@ func NewSyslogSource(config models.SourceConfig) *SyslogSource {
 func (s *SyslogSource) Start(app ApplicationInterface) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	
+
 	if s.isRunning {
 		return fmt.Errorf("source %s is already running", s.config.Name)
 	}
-	
+
 	// Get or create shared listener
 	sharedListener, err := app.GetSharedListener(s.config.Protocol, s.config.Port)
 	if err != nil {
 		return fmt.Errorf("failed to get shared listener on %s port %d: %v", s.config.Protocol, s.config.Port, err)
 	}
-	
+
 	// Register this source with the shared listener
 	sharedListener.AddSource(s)
-	
+
 	s.isRunning = true
 	go s.updateMetrics()
-	
+	s.startWorker()
+
 	log.Printf("✓ Source '%s' started on %s:%d", s.config.Name, s.config.Protocol, s.config.Port)
 	return nil
 }
@@ -79,17 +85,17 @@ func (s *SyslogSource) Start(app ApplicationInterface) error {
 func (s *SyslogSource) Stop(app ApplicationInterface) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	
+
 	if !s.isRunning {
 		return
 	}
-	
+
 	s.isRunning = false
-	
+
 	// Remove from shared listener
 	if sharedListener, err := app.GetSharedListener(s.config.Protocol, s.config.Port); err == nil {
 		sharedListener.RemoveSource(s)
-		
+
 		// Check if this was the last source for this listener
 		if sharedListener.GetSourceCount() == 0 {
 			// No more sources, can stop the shared listener
@@ -97,31 +103,23 @@ func (s *SyslogSource) Stop(app ApplicationInterface) {
 			log.Printf("✓ Stopped %s listener on port %d", s.config.Protocol, s.config.Port)
 		}
 	}
-	
+
 	s.metrics.IsActive = false
 }
 
 // processMessage processes a single syslog message
 func (s *SyslogSource) processMessage(data []byte) {
-	if !s.config.CalculationMode {
-		return
+	if !s.config.SimulationMode {
+		s.queue <- data
+		atomic.AddInt64(&s.processedCount, 1)
 	}
-	
-	// Update message timing
-	s.msgMutex.Lock()
-	s.lastMessageTime = time.Now()
-	s.msgMutex.Unlock()
-	
-	// Increment counters
-	atomic.AddInt64(&s.eventCount, 1)
-	atomic.AddInt64(&s.dataSize, int64(len(data)))
 }
 
 // updateMetrics continuously updates metrics for this source
 func (s *SyslogSource) updateMetrics() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-s.stopChan:
@@ -136,11 +134,11 @@ func (s *SyslogSource) updateMetrics() {
 func (s *SyslogSource) calculateMetrics() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	
+
 	now := time.Now()
 	currentEvents := atomic.LoadInt64(&s.eventCount)
 	currentDataSize := atomic.LoadInt64(&s.dataSize)
-	
+
 	// Calculate real-time EPS and GB/s
 	if !s.lastUpdate.IsZero() {
 		duration := now.Sub(s.lastUpdate).Seconds()
@@ -149,15 +147,15 @@ func (s *SyslogSource) calculateMetrics() {
 			s.metrics.RealTimeGBps = float64(currentDataSize) / (1024 * 1024 * 1024) / duration
 		}
 	}
-	
+
 	// Check if we're receiving messages
 	s.msgMutex.RLock()
 	lastMsgTime := s.lastMessageTime
 	s.msgMutex.RUnlock()
-	
+
 	s.metrics.IsReceiving = !lastMsgTime.IsZero() && now.Sub(lastMsgTime) < 10*time.Second
 	s.metrics.LastMessageAt = lastMsgTime
-	
+
 	// Add current data point to buffer if we have data
 	if currentEvents > 0 || currentDataSize > 0 {
 		s.buffer.Add(models.MetricDataPoint{
@@ -166,25 +164,28 @@ func (s *SyslogSource) calculateMetrics() {
 			DataSize:  currentDataSize,
 		})
 	}
-	
+
 	// Calculate averages
 	s.metrics.HourlyAvgLogs, s.metrics.HourlyAvgGB = s.buffer.GetAverage(1 * time.Hour)
 	s.metrics.DailyAvgLogs, s.metrics.DailyAvgGB = s.buffer.GetAverage(24 * time.Hour)
-	
+
 	s.metrics.LastUpdated = now
 	s.metrics.IsActive = s.isRunning
-	
+
 	// Reset counters
 	atomic.StoreInt64(&s.eventCount, 0)
 	atomic.StoreInt64(&s.dataSize, 0)
 	s.lastUpdate = now
+
+	s.metrics.QueueLength = int64(len(s.queue))
+	s.metrics.ProcessedCount = atomic.LoadInt64(&s.processedCount)
 }
 
 // GetMetrics returns current metrics for this source
 func (s *SyslogSource) GetMetrics() models.SourceMetrics {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	
+
 	return *s.metrics
 }
 
@@ -193,4 +194,87 @@ func (s *SyslogSource) IsRunning() bool {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	return s.isRunning
+}
+
+func (s *SyslogSource) startWorker() {
+	go func() {
+		batch := make([][]byte, 0, 1000)
+		batchSize := 1000
+		for {
+			if s.config.SimulationMode {
+				time.Sleep(1 * time.Second)
+				continue
+			}
+			select {
+			case logData := <-s.queue:
+				batch = append(batch, logData)
+				if len(batch) >= batchSize {
+					s.processBatch(batch)
+					batch = make([][]byte, 0, batchSize)
+				}
+			case <-time.After(2 * time.Second):
+				if len(batch) > 0 {
+					s.processBatch(batch)
+					batch = make([][]byte, 0, batchSize)
+				}
+			}
+		}
+	}()
+}
+
+func (s *SyslogSource) processBatch(batch [][]byte) {
+	events := make([]map[string]interface{}, 0, len(batch))
+	sourceName := s.config.Name
+	simMode := s.config.SimulationMode
+	for _, logData := range batch {
+		var event map[string]interface{}
+		if json.Valid(logData) {
+			// Parse JSON log
+			if err := json.Unmarshal(logData, &event); err != nil {
+				event = map[string]interface{}{"event": string(logData)}
+			}
+			event = map[string]interface{}{
+				"time":            time.Now().UTC().Format("Jan 02 15:04:05"),
+				"event":           event,
+				"source":          sourceName,
+				"simulation_mode": simMode,
+			}
+		} else {
+			event = map[string]interface{}{
+				"time":            time.Now().UTC().Format("Jan 02 15:04:05"),
+				"event":           string(logData),
+				"source":          sourceName,
+				"simulation_mode": simMode,
+			}
+		}
+		events = append(events, event)
+	}
+	for _, dest := range s.config.Destinations {
+		if !dest.Enabled {
+			continue
+		}
+		switch dest.Type {
+		case "storage":
+			cfg, ok := dest.Config.(map[string]interface{})
+			if ok {
+				storageCfg := models.StorageConfig{}
+				if path, exists := cfg["path"].(string); exists {
+					storageCfg.Path = path
+				}
+				_ = destinations.WriteBatchToStorage(sourceName, storageCfg, events)
+			}
+		case "hec":
+			cfg, ok := dest.Config.(map[string]interface{})
+			if ok {
+				hecCfg := models.HECConfig{}
+				if url, exists := cfg["url"].(string); exists {
+					hecCfg.URL = url
+				}
+				if apiKey, exists := cfg["api_key"].(string); exists {
+					hecCfg.APIKey = apiKey
+				}
+				_ = destinations.PostBatchToHEC(sourceName, hecCfg, events)
+			}
+		}
+	}
 }
