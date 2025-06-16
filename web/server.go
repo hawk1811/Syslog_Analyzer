@@ -499,3 +499,14 @@ func (s *Server) handleGetGlobalMetrics(w http.ResponseWriter, r *http.Request) 
 
 	json.NewEncoder(w).Encode(s.globalMetrics)
 }
+
+// getSourceStatus returns a human-readable status for a source
+func getSourceStatus(source models.SourceMetrics) string {
+	if !source.IsActive {
+		return "Inactive"
+	}
+	if !source.IsReceiving {
+		return "No Data"
+	}
+	return "Active"
+}
