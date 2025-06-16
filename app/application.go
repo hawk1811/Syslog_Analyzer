@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"syslog-analyzer/config"
@@ -234,7 +233,8 @@ func (app *Application) getMetrics() ([]models.SourceMetrics, models.GlobalMetri
 		source.CalculateMetrics()
 		metrics := source.GetMetrics()
 		metrics.QueueLength = int64(source.GetQueueLength())
-		metrics.ProcessedCount = atomic.LoadInt64(&source.ProcessedCount)
+		metrics.ProcessedCount = source.GetProcessedCount()
+		sourceMetrics = append(sourceMetrics, metrics)
 	}
 
 	return sourceMetrics, app.GetGlobalMetrics()
@@ -405,7 +405,7 @@ func (app *Application) Shutdown() {
 
 	// Close all channels
 	for _, source := range app.sources {
-		close(source.queue)
+		source.CloseQueue()
 	}
 
 	// Wait a short time for cleanup

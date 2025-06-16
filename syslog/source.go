@@ -224,8 +224,15 @@ func (s *SyslogSource) GetQueueLength() int {
 }
 
 // GetMetrics returns the source's current metrics
-func (s *SyslogSource) GetMetrics() *models.SourceMetrics {
-	return s.metrics
+func (s *SyslogSource) GetMetrics() models.SourceMetrics {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	return *s.metrics
+}
+
+// GetProcessedCount returns the number of processed logs
+func (s *SyslogSource) GetProcessedCount() int64 {
+	return atomic.LoadInt64(&s.processedCount)
 }
 
 // IsRunning returns whether the source is currently running
@@ -404,5 +411,15 @@ func (s *SyslogSource) processDestinationBatch(destID string, dest *models.Desti
 				atomic.AddInt64(&s.destMetrics[destID].QueueLength, -int64(len(events)))
 			}
 		}
+	}
+}
+
+// CloseQueue safely closes the queue channel
+func (s *SyslogSource) CloseQueue() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	if s.queue != nil {
+		close(s.queue)
+		s.queue = nil
 	}
 }
