@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -20,40 +21,32 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to get executable path: %v", err)
 	}
-
+	
 	configFile := filepath.Join(filepath.Dir(execPath), "syslog_analyzer.json")
-
+	
 	// Create application
 	application := app.NewApplication(configFile)
-
+	
 	// Load configuration
 	if err := application.LoadConfig(); err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
-
+	
 	// Set up signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	// Create a channel to wait for shutdown
-	shutdownComplete := make(chan struct{})
-
+	
 	go func() {
 		<-sigChan
-		fmt.Println("\nApplication shutting down...")
-
-		// Stop the application
 		application.Stop()
-
-		// Signal that shutdown is complete
-		close(shutdownComplete)
+		os.Exit(0)
 	}()
-
+	
 	// Start syslog sources
 	if err := application.StartSources(); err != nil {
 		log.Fatalf("Failed to start syslog sources: %v", err)
 	}
-
+	
 	// Display startup information
 	fmt.Printf("\n" + strings.Repeat("=", 60) + "\n")
 	fmt.Printf("🚀 Professional Syslog Analyzer Started Successfully!\n")
@@ -67,12 +60,11 @@ func main() {
 	fmt.Printf("💡 Access the dashboard at: http://localhost:%d\n", application.GetWebPort())
 	fmt.Printf("🛑 Press Ctrl+C to stop the service\n")
 	fmt.Printf(strings.Repeat("=", 60) + "\n\n")
-
+	
 	// Start web server (blocking)
 	if err := application.StartWebServer(); err != nil {
-		log.Fatalf("Failed to start web server: %v", err)
+		if err != http.ErrServerClosed {
+			log.Fatalf("Failed to start web server: %v", err)
+		}
 	}
-
-	// Wait for shutdown signal
-	<-shutdownComplete
 }

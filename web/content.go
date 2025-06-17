@@ -1,5 +1,6 @@
 package web
 
+
 // HTMLContent contains the dashboard HTML
 const HTMLContent = `<!DOCTYPE html>
 <html lang="en">
@@ -32,11 +33,11 @@ const HTMLContent = `<!DOCTYPE html>
                         <div class="metric-value" id="globalGBps">0.000000</div>
                     </div>
                     <div class="metric-card">
-                        <h3>Total Hourly Avg GB</h3>
+                        <h3>Total Hourly Avg GB/s</h3>
                         <div class="metric-value" id="totalHourlyAvg">0.00000</div>
                     </div>
                     <div class="metric-card">
-                        <h3>Total Daily Avg GB</h3>
+                        <h3>Total Daily Avg GB/s</h3>
                         <div class="metric-value" id="totalDailyAvg">0.00000</div>
                     </div>
                     <div class="metric-card">
@@ -67,8 +68,6 @@ const HTMLContent = `<!DOCTYPE html>
                                 <th>Real-time Metrics</th>
                                 <th>Hourly Averages</th>
                                 <th>Daily Averages</th>
-                                <th>Destinations</th>
-                                <th>Simulation Mode</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -122,19 +121,6 @@ const HTMLContent = `<!DOCTYPE html>
                     <div class="toggle-container">
                         <input type="checkbox" id="calculationMode" class="toggle-input" checked>
                         <label for="calculationMode" class="toggle-label">
-                            <span class="toggle-slider"></span>
-                            <span class="toggle-text">
-                                <span class="on-text">ON</span>
-                                <span class="off-text">OFF</span>
-                            </span>
-                        </label>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="simulationMode">Simulation Mode:</label>
-                    <div class="toggle-container">
-                        <input type="checkbox" id="simulationMode" class="toggle-input" checked>
-                        <label for="simulationMode" class="toggle-label">
                             <span class="toggle-slider"></span>
                             <span class="toggle-text">
                                 <span class="on-text">ON</span>

@@ -26,7 +26,6 @@ type SyslogSource struct {
 	msgMutex        sync.RWMutex
 	isRunning       bool
 	mutex           sync.RWMutex
-	simulationMode  bool
 }
 
 // ApplicationInterface defines the interface for application methods needed by SyslogSource
@@ -55,23 +54,23 @@ func NewSyslogSource(config models.SourceConfig) *SyslogSource {
 func (s *SyslogSource) Start(app ApplicationInterface) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
+	
 	if s.isRunning {
 		return fmt.Errorf("source %s is already running", s.config.Name)
 	}
-
+	
 	// Get or create shared listener
 	sharedListener, err := app.GetSharedListener(s.config.Protocol, s.config.Port)
 	if err != nil {
 		return fmt.Errorf("failed to get shared listener on %s port %d: %v", s.config.Protocol, s.config.Port, err)
 	}
-
+	
 	// Register this source with the shared listener
 	sharedListener.AddSource(s)
-
+	
 	s.isRunning = true
 	go s.updateMetrics()
-
+	
 	log.Printf("✓ Source '%s' started on %s:%d", s.config.Name, s.config.Protocol, s.config.Port)
 	return nil
 }
@@ -80,17 +79,17 @@ func (s *SyslogSource) Start(app ApplicationInterface) error {
 func (s *SyslogSource) Stop(app ApplicationInterface) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
+	
 	if !s.isRunning {
 		return
 	}
-
+	
 	s.isRunning = false
-
+	
 	// Remove from shared listener
 	if sharedListener, err := app.GetSharedListener(s.config.Protocol, s.config.Port); err == nil {
 		sharedListener.RemoveSource(s)
-
+		
 		// Check if this was the last source for this listener
 		if sharedListener.GetSourceCount() == 0 {
 			// No more sources, can stop the shared listener
@@ -98,21 +97,21 @@ func (s *SyslogSource) Stop(app ApplicationInterface) {
 			log.Printf("✓ Stopped %s listener on port %d", s.config.Protocol, s.config.Port)
 		}
 	}
-
+	
 	s.metrics.IsActive = false
 }
 
 // processMessage processes a single syslog message
 func (s *SyslogSource) processMessage(data []byte) {
-	if !s.simulationMode {
+	if !s.config.CalculationMode {
 		return
 	}
-
+	
 	// Update message timing
 	s.msgMutex.Lock()
 	s.lastMessageTime = time.Now()
 	s.msgMutex.Unlock()
-
+	
 	// Increment counters
 	atomic.AddInt64(&s.eventCount, 1)
 	atomic.AddInt64(&s.dataSize, int64(len(data)))
@@ -122,7 +121,7 @@ func (s *SyslogSource) processMessage(data []byte) {
 func (s *SyslogSource) updateMetrics() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
-
+	
 	for {
 		select {
 		case <-s.stopChan:
@@ -137,11 +136,11 @@ func (s *SyslogSource) updateMetrics() {
 func (s *SyslogSource) calculateMetrics() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
+	
 	now := time.Now()
 	currentEvents := atomic.LoadInt64(&s.eventCount)
 	currentDataSize := atomic.LoadInt64(&s.dataSize)
-
+	
 	// Calculate real-time EPS and GB/s
 	if !s.lastUpdate.IsZero() {
 		duration := now.Sub(s.lastUpdate).Seconds()
@@ -150,15 +149,15 @@ func (s *SyslogSource) calculateMetrics() {
 			s.metrics.RealTimeGBps = float64(currentDataSize) / (1024 * 1024 * 1024) / duration
 		}
 	}
-
+	
 	// Check if we're receiving messages
 	s.msgMutex.RLock()
 	lastMsgTime := s.lastMessageTime
 	s.msgMutex.RUnlock()
-
+	
 	s.metrics.IsReceiving = !lastMsgTime.IsZero() && now.Sub(lastMsgTime) < 10*time.Second
 	s.metrics.LastMessageAt = lastMsgTime
-
+	
 	// Add current data point to buffer if we have data
 	if currentEvents > 0 || currentDataSize > 0 {
 		s.buffer.Add(models.MetricDataPoint{
@@ -167,14 +166,14 @@ func (s *SyslogSource) calculateMetrics() {
 			DataSize:  currentDataSize,
 		})
 	}
-
+	
 	// Calculate averages
 	s.metrics.HourlyAvgLogs, s.metrics.HourlyAvgGB = s.buffer.GetAverage(1 * time.Hour)
 	s.metrics.DailyAvgLogs, s.metrics.DailyAvgGB = s.buffer.GetAverage(24 * time.Hour)
-
+	
 	s.metrics.LastUpdated = now
 	s.metrics.IsActive = s.isRunning
-
+	
 	// Reset counters
 	atomic.StoreInt64(&s.eventCount, 0)
 	atomic.StoreInt64(&s.dataSize, 0)
@@ -185,7 +184,7 @@ func (s *SyslogSource) calculateMetrics() {
 func (s *SyslogSource) GetMetrics() models.SourceMetrics {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-
+	
 	return *s.metrics
 }
 
@@ -194,13 +193,4 @@ func (s *SyslogSource) IsRunning() bool {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	return s.isRunning
-}
-
-// UpdateConfig updates the source configuration
-func (s *SyslogSource) UpdateConfig(config models.SourceConfig) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	s.config = config
-	s.simulationMode = config.SimulationMode
 }
