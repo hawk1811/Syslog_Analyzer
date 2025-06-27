@@ -1,6 +1,5 @@
 package web
 
-
 // HTMLContent contains the dashboard HTML
 const HTMLContent = `<!DOCTYPE html>
 <html lang="en">
@@ -33,11 +32,11 @@ const HTMLContent = `<!DOCTYPE html>
                         <div class="metric-value" id="globalGBps">0.000000</div>
                     </div>
                     <div class="metric-card">
-                        <h3>Total Hourly Avg GB/s</h3>
+                        <h3>Total Hourly Avg GB</h3>
                         <div class="metric-value" id="totalHourlyAvg">0.00000</div>
                     </div>
                     <div class="metric-card">
-                        <h3>Total Daily Avg GB/s</h3>
+                        <h3>Total Daily Avg GB</h3>
                         <div class="metric-value" id="totalDailyAvg">0.00000</div>
                     </div>
                     <div class="metric-card">
@@ -117,10 +116,10 @@ const HTMLContent = `<!DOCTYPE html>
                 </div>
                 
                 <div class="form-group">
-                    <label for="calculationMode">Calculation Mode:</label>
+                    <label for="simulationMode">Simulation Mode:</label>
                     <div class="toggle-container">
-                        <input type="checkbox" id="calculationMode" class="toggle-input" checked>
-                        <label for="calculationMode" class="toggle-label">
+                        <input type="checkbox" id="simulationMode" class="toggle-input" checked>
+                        <label for="simulationMode" class="toggle-label">
                             <span class="toggle-slider"></span>
                             <span class="toggle-text">
                                 <span class="on-text">ON</span>
@@ -1005,7 +1004,7 @@ const JSContent = `class SyslogDashboard {
         // Reset form for new source
         document.getElementById('addSourceForm').reset();
         document.getElementById('sourceProtocol').value = 'UDP';
-        document.getElementById('calculationMode').checked = true;
+        document.getElementById('simulationMode').checked = true;
         
         // Clear destinations
         document.getElementById('destinationsContainer').innerHTML = '';
@@ -1026,7 +1025,7 @@ const JSContent = `class SyslogDashboard {
         document.getElementById('sourceIP').value = source.ip;
         document.getElementById('sourcePort').value = source.port;
         document.getElementById('sourceProtocol').value = source.protocol;
-        document.getElementById('calculationMode').checked = source.calculation_mode !== false;
+        document.getElementById('simulationMode').checked = source.simulation_mode !== false;
         
         // Clear and populate destinations
         const container = document.getElementById('destinationsContainer');
@@ -1281,7 +1280,7 @@ const JSContent = `class SyslogDashboard {
             port: parseInt(document.getElementById('sourcePort').value),
             protocol: document.getElementById('sourceProtocol').value,
             destinations: this.collectDestinations(),
-            calculation_mode: document.getElementById('calculationMode').checked
+            simulation_mode: document.getElementById('simulationMode').checked
         };
 
         try {
